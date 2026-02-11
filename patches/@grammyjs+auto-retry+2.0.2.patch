@@ -1,0 +1,14 @@
+diff --git a/node_modules/@grammyjs/auto-retry/out/mod.js b/node_modules/@grammyjs/auto-retry/out/mod.js
+index 677614c..7860ba2 100644
+--- a/node_modules/@grammyjs/auto-retry/out/mod.js
++++ b/node_modules/@grammyjs/auto-retry/out/mod.js
+@@ -54,7 +54,8 @@ function autoRetry(options) {
+                 }
+                 catch (e) {
+                     if ((signal === undefined || !signal.aborted) &&
+-                        !rethrowHttpErrors && e instanceof platform_node_js_1.HttpError) {
++                        !rethrowHttpErrors && e instanceof platform_node_js_1.HttpError &&
++                        remainingAttempts-- > 0) {
+                         debug(`HttpError thrown, will retry '${method}' after ${nextDelay} seconds (${e.message})`);
+                         await backoff();
+                         continue;

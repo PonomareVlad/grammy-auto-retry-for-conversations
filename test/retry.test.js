@@ -16,9 +16,6 @@ const BOT_INFO = {
 
 const TEST_TOKEN = "123456789:TEST_TOKEN";
 
-// TEST-NET-1 (RFC 5737) — guaranteed non-routable, triggers network timeout
-const UNREACHABLE_API_ROOT = "http://192.0.2.1";
-
 function makeUpdate(text, updateId = 1) {
   return {
     update_id: updateId,
@@ -34,47 +31,54 @@ function makeUpdate(text, updateId = 1) {
 }
 
 /**
- * Creates a bot configured with an unreachable apiRoot.
- * Installs a transformer to count every API call attempt
- * both on bot.api and inside conversations (via plugins).
+ * Creates a fake fetch that always throws a network error (simulating timeout).
+ * Tracks total call count.
  */
-function createTestBot(autoRetryConfig = {}) {
-  const retryCounter = { count: 0, methods: [] };
-
-  const counterTransformer = (prev, method, payload, signal) => {
-    retryCounter.count++;
-    retryCounter.methods.push(method);
-    return prev(method, payload, signal);
+function createFakeFetch() {
+  const counter = { count: 0 };
+  const fakeFetch = async () => {
+    counter.count++;
+    throw new TypeError("fetch failed");
   };
+  return { fakeFetch, counter };
+}
 
-  const bot = createBot(TEST_TOKEN, {
+/**
+ * Creates a bot that uses a fake fetch to simulate network errors.
+ * auto-retry with default config will retry HttpErrors (patched to respect maxRetryAttempts).
+ */
+function createTestBot(fakeFetch) {
+  return createBot(TEST_TOKEN, {
     botInfo: BOT_INFO,
     client: {
-      apiRoot: UNREACHABLE_API_ROOT,
-      timeoutSeconds: 3,
+      fetch: fakeFetch,
     },
     autoRetryConfig: {
       maxRetryAttempts: 1,
       maxDelaySeconds: 5,
-      ...autoRetryConfig,
     },
-    conversationPlugins: [
-      async (ctx, next) => {
-        ctx.api.config.use(counterTransformer);
-        await next();
-      },
-    ],
   });
+}
 
-  // Install counter on bot.api for non-conversation calls
-  bot.api.config.use(counterTransformer);
-
-  return { bot, retryCounter };
+/**
+ * Determines auto-retry activation from the thrown error.
+ * grammY wraps fetch errors as HttpError. If auto-retry activated,
+ * the request was retried before the error propagated.
+ */
+function reportResult(label, counter, error) {
+  const retryActivated = counter.count > 1;
+  console.log([
+    `  ${label}:`,
+    `auto-retry=${retryActivated ? "YES" : "NO"}`,
+    `attempts=${counter.count}`,
+    `error=${error?.message ?? "none"}`,
+  ].join(" | "));
 }
 
 describe("auto-retry on network errors without conversation", () => {
   it("reply (sendMessage) on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+    const { fakeFetch, counter } = createFakeFetch();
+    const bot = createTestBot(fakeFetch);
 
     let error;
     try {
@@ -83,13 +87,14 @@ describe("auto-retry on network errors without conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendMessage (no conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    reportResult("sendMessage (no conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
   });
 
   it("replyWithPhoto (sendPhoto) on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+    const { fakeFetch, counter } = createFakeFetch();
+    const bot = createTestBot(fakeFetch);
 
     let error;
     try {
@@ -98,15 +103,16 @@ describe("auto-retry on network errors without conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendPhoto (no conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    reportResult("sendPhoto (no conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
   });
 });
 
 describe("auto-retry on network errors inside conversation", () => {
   it("reply (sendMessage) inside conversation on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+    const { fakeFetch, counter } = createFakeFetch();
+    const bot = createTestBot(fakeFetch);
 
     let error;
     try {
@@ -115,13 +121,14 @@ describe("auto-retry on network errors inside conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendMessage (conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    reportResult("sendMessage (conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
   });
 
   it("replyWithPhoto (sendPhoto) inside conversation on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+    const { fakeFetch, counter } = createFakeFetch();
+    const bot = createTestBot(fakeFetch);
 
     let error;
     try {
@@ -130,8 +137,8 @@ describe("auto-retry on network errors inside conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendPhoto (conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    reportResult("sendPhoto (conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
   });
 });
