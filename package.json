@@ -1,0 +1,35 @@
+{
+  "name": "grammy-auto-retry-for-conversations",
+  "version": "1.0.0",
+  "description": "Demo project to test grammY auto-retry plugin behavior with conversations",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node scripts/start.js",
+    "test": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PonomareVlad/grammy-auto-retry-for-conversations.git"
+  },
+  "keywords": [
+    "grammy",
+    "telegram",
+    "auto-retry",
+    "conversations"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PonomareVlad/grammy-auto-retry-for-conversations/issues"
+  },
+  "homepage": "https://github.com/PonomareVlad/grammy-auto-retry-for-conversations#readme",
+  "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
+    "@grammyjs/commands": "^1.2.0",
+    "@grammyjs/conversations": "^2.1.1",
+    "grammy": "^1.40.0"
+  }
+}
