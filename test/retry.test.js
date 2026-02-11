@@ -31,37 +31,21 @@ function makeUpdate(text, updateId = 1) {
 }
 
 /**
- * Returns a 429 (rate-limited) response with retry_after.
- * auto-retry will retry once (maxRetryAttempts: 1) then fail with GrammyError.
- */
-function rateLimitedResponse(retryAfter = 1) {
-  return new Response(
-    JSON.stringify({
-      ok: false,
-      error_code: 429,
-      description: "Too Many Requests: retry after " + retryAfter,
-      parameters: { retry_after: retryAfter },
-    }),
-    { status: 429, headers: { "content-type": "application/json" } },
-  );
-}
-
-/**
- * Creates a fake fetch that always returns a 429 rate-limited response.
+ * Creates a fake fetch that always throws a network error (simulating timeout).
  * Tracks total call count.
  */
 function createFakeFetch() {
   const counter = { count: 0 };
   const fakeFetch = async () => {
     counter.count++;
-    return rateLimitedResponse(1);
+    throw new TypeError("fetch failed");
   };
   return { fakeFetch, counter };
 }
 
 /**
- * Creates a bot that uses a fake fetch to simulate API errors.
- * auto-retry with maxRetryAttempts: 1 will retry once then fail.
+ * Creates a bot that uses a fake fetch to simulate network errors.
+ * auto-retry with default config will retry HttpErrors (patched to respect maxRetryAttempts).
  */
 function createTestBot(fakeFetch) {
   return createBot(TEST_TOKEN, {
@@ -76,8 +60,23 @@ function createTestBot(fakeFetch) {
   });
 }
 
-describe("auto-retry on errors without conversation", () => {
-  it("reply (sendMessage) retries once then fails", { timeout: 30_000 }, async () => {
+/**
+ * Determines auto-retry activation from the thrown error.
+ * grammY wraps fetch errors as HttpError. If auto-retry activated,
+ * the request was retried before the error propagated.
+ */
+function reportResult(label, counter, error) {
+  const retryActivated = counter.count > 1;
+  console.log([
+    `  ${label}:`,
+    `auto-retry=${retryActivated ? "YES" : "NO"}`,
+    `attempts=${counter.count}`,
+    `error=${error?.message ?? "none"}`,
+  ].join(" | "));
+}
+
+describe("auto-retry on network errors without conversation", () => {
+  it("reply (sendMessage) on network error", { timeout: 30_000 }, async () => {
     const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
@@ -88,12 +87,12 @@ describe("auto-retry on errors without conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error after retries exhausted");
+    reportResult("sendMessage (no conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
     assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
-    console.log(`  sendMessage (no conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 
-  it("replyWithPhoto (sendPhoto) retries once then fails", { timeout: 30_000 }, async () => {
+  it("replyWithPhoto (sendPhoto) on network error", { timeout: 30_000 }, async () => {
     const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
@@ -104,14 +103,14 @@ describe("auto-retry on errors without conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error after retries exhausted");
+    reportResult("sendPhoto (no conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
     assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
-    console.log(`  sendPhoto (no conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 });
 
-describe("auto-retry on errors inside conversation", () => {
-  it("reply (sendMessage) inside conversation retries once then fails", { timeout: 30_000 }, async () => {
+describe("auto-retry on network errors inside conversation", () => {
+  it("reply (sendMessage) inside conversation on network error", { timeout: 30_000 }, async () => {
     const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
@@ -122,12 +121,12 @@ describe("auto-retry on errors inside conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error after retries exhausted");
+    reportResult("sendMessage (conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
     assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
-    console.log(`  sendMessage (conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 
-  it("replyWithPhoto (sendPhoto) inside conversation retries once then fails", { timeout: 30_000 }, async () => {
+  it("replyWithPhoto (sendPhoto) inside conversation on network error", { timeout: 30_000 }, async () => {
     const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
@@ -138,8 +137,8 @@ describe("auto-retry on errors inside conversation", () => {
       error = err;
     }
 
-    assert.ok(error, "Expected an error after retries exhausted");
+    reportResult("sendPhoto (conversation)", counter, error);
+    assert.ok(error, "Expected an error from network failure");
     assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
-    console.log(`  sendPhoto (conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 });
