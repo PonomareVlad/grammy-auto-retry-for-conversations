@@ -16,9 +16,6 @@ const BOT_INFO = {
 
 const TEST_TOKEN = "123456789:TEST_TOKEN";
 
-// TEST-NET-1 (RFC 5737) — guaranteed non-routable, triggers network timeout
-const UNREACHABLE_API_ROOT = "http://192.0.2.1";
-
 function makeUpdate(text, updateId = 1) {
   return {
     update_id: updateId,
@@ -33,105 +30,93 @@ function makeUpdate(text, updateId = 1) {
   };
 }
 
+const OK_BODY = JSON.stringify({
+  ok: true,
+  result: {
+    message_id: 1,
+    from: BOT_INFO,
+    chat: { id: 1, type: "private", first_name: "User" },
+    date: Math.floor(Date.now() / 1000),
+    text: "ok",
+  },
+});
+
 /**
- * Creates a bot configured with an unreachable apiRoot.
- * Installs a transformer to count every API call attempt
- * both on bot.api and inside conversations (via plugins).
+ * Creates a fake fetch that fails `failCount` times then succeeds.
+ * Tracks total call count.
  */
-function createTestBot(autoRetryConfig = {}) {
-  const retryCounter = { count: 0, methods: [] };
-
-  const counterTransformer = (prev, method, payload, signal) => {
-    retryCounter.count++;
-    retryCounter.methods.push(method);
-    return prev(method, payload, signal);
+function createFakeFetch(failCount = 2) {
+  const counter = { count: 0 };
+  const fakeFetch = async () => {
+    counter.count++;
+    if (counter.count <= failCount) {
+      throw new TypeError("fetch failed");
+    }
+    return new Response(OK_BODY, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
   };
+  return { fakeFetch, counter };
+}
 
-  const bot = createBot(TEST_TOKEN, {
+/**
+ * Creates a bot that uses a fake fetch to simulate network errors.
+ * auto-retry with default config (rethrowHttpErrors=false) will retry on HttpErrors.
+ */
+function createTestBot(fakeFetch) {
+  return createBot(TEST_TOKEN, {
     botInfo: BOT_INFO,
     client: {
-      apiRoot: UNREACHABLE_API_ROOT,
-      timeoutSeconds: 3,
+      fetch: fakeFetch,
     },
     autoRetryConfig: {
       maxRetryAttempts: 1,
-      maxDelaySeconds: 5,
-      ...autoRetryConfig,
+      maxDelaySeconds: 1,
     },
-    conversationPlugins: [
-      async (ctx, next) => {
-        ctx.api.config.use(counterTransformer);
-        await next();
-      },
-    ],
   });
-
-  // Install counter on bot.api for non-conversation calls
-  bot.api.config.use(counterTransformer);
-
-  return { bot, retryCounter };
 }
 
 describe("auto-retry on network errors without conversation", () => {
-  it("reply (sendMessage) on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+  it("reply (sendMessage) retries on network error then succeeds", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch(2);
+    const bot = createTestBot(fakeFetch);
 
-    let error;
-    try {
-      await bot.handleUpdate(makeUpdate("/send_message"));
-    } catch (err) {
-      error = err;
-    }
+    await bot.handleUpdate(makeUpdate("/send_message"));
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendMessage (no conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    console.log(`  sendMessage (no conversation): ${counter.count} attempt(s)`);
   });
 
-  it("replyWithPhoto (sendPhoto) on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+  it("replyWithPhoto (sendPhoto) retries on network error then succeeds", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch(2);
+    const bot = createTestBot(fakeFetch);
 
-    let error;
-    try {
-      await bot.handleUpdate(makeUpdate("/send_photo"));
-    } catch (err) {
-      error = err;
-    }
+    await bot.handleUpdate(makeUpdate("/send_photo"));
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendPhoto (no conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    console.log(`  sendPhoto (no conversation): ${counter.count} attempt(s)`);
   });
 });
 
 describe("auto-retry on network errors inside conversation", () => {
-  it("reply (sendMessage) inside conversation on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+  it("reply (sendMessage) inside conversation retries on network error then succeeds", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch(2);
+    const bot = createTestBot(fakeFetch);
 
-    let error;
-    try {
-      await bot.handleUpdate(makeUpdate("/conv_message"));
-    } catch (err) {
-      error = err;
-    }
+    await bot.handleUpdate(makeUpdate("/conv_message"));
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendMessage (conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    console.log(`  sendMessage (conversation): ${counter.count} attempt(s)`);
   });
 
-  it("replyWithPhoto (sendPhoto) inside conversation on network error", { timeout: 30_000 }, async () => {
-    const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
+  it("replyWithPhoto (sendPhoto) inside conversation retries on network error then succeeds", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch(2);
+    const bot = createTestBot(fakeFetch);
 
-    let error;
-    try {
-      await bot.handleUpdate(makeUpdate("/conv_photo"));
-    } catch (err) {
-      error = err;
-    }
+    await bot.handleUpdate(makeUpdate("/conv_photo"));
 
-    assert.ok(error, "Expected an error from unreachable API");
-    console.log(`  sendPhoto (conversation): ${retryCounter.count} attempt(s), error: ${error.message}`);
-    console.log(`  methods called: [${retryCounter.methods}]`);
+    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    console.log(`  sendPhoto (conversation): ${counter.count} attempt(s)`);
   });
 });
