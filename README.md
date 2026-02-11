@@ -1,6 +1,6 @@
 # grammy-auto-retry-for-conversations
 
-Demo project to test [grammY](https://grammy.dev/) auto-retry plugin behavior with conversations, specifically investigating differences in retry behavior between conversation and non-conversation API requests on network errors.
+Demo project to test [grammY](https://grammy.dev/) auto-retry plugin behavior with conversations, specifically investigating differences in retry behavior between conversation and non-conversation API requests on network timeouts.
 
 ## Setup
 
@@ -16,8 +16,8 @@ Demo project to test [grammY](https://grammy.dev/) auto-retry plugin behavior wi
 |---------|-------------|
 | `/send_message` | `ctx.reply()` — sendMessage without conversation |
 | `/send_photo` | `ctx.replyWithPhoto()` — sendPhoto without conversation |
-| `/conv_message` | `ctx.reply()` inside `conversation.external()` |
-| `/conv_photo` | `ctx.replyWithPhoto()` inside `conversation.external()` |
+| `/conv_message` | `ctx.reply()` inside conversation |
+| `/conv_photo` | `ctx.replyWithPhoto()` inside conversation |
 
 ## Running
 
@@ -28,7 +28,7 @@ TELEGRAM_BOT_TOKEN=your_token_here npm start
 
 ## Testing
 
-Tests point the bot's `apiRoot` to an unreachable address (`http://127.0.0.1:1`) to trigger real network errors (ECONNREFUSED). A pre-fetched `botInfo` is used to skip the internal `bot.init()` / `getMe` call. Each test counts API call attempts via a transformer to observe auto-retry behavior.
+Tests point the bot's `apiRoot` to a non-routable address (`http://100.100.100.100`) to trigger real network timeouts. A pre-fetched `botInfo` is used to skip the internal `bot.init()` / `getMe` call. Each test counts API call attempts via a transformer to observe auto-retry behavior.
 
 ```bash
 npm test

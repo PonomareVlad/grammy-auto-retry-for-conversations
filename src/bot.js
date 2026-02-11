@@ -19,7 +19,7 @@ export function createBot(token, options = {}) {
 
   bot.api.config.use(
     autoRetry({
-      maxRetryAttempts: 3,
+      maxRetryAttempts: 1,
       maxDelaySeconds: 5,
       ...options.autoRetryConfig,
     })
@@ -28,17 +28,13 @@ export function createBot(token, options = {}) {
   bot.use(conversations());
 
   async function conversationSendMessage(conversation, ctx) {
-    await conversation.external(() =>
-      ctx.reply("Message sent inside conversation")
-    );
+    await ctx.reply("Message sent inside conversation");
   }
 
   async function conversationSendPhoto(conversation, ctx) {
-    await conversation.external(() =>
-      ctx.replyWithPhoto("https://picsum.photos/200/300", {
-        caption: "Photo sent inside conversation",
-      })
-    );
+    await ctx.replyWithPhoto("https://picsum.photos/200/300", {
+      caption: "Photo sent inside conversation",
+    });
   }
 
   bot.use(createConversation(conversationSendMessage));
@@ -63,12 +59,4 @@ export function createBot(token, options = {}) {
   );
 
   return bot;
-}
-
-// Run the bot if executed directly
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (token && process.argv[1] === import.meta.filename) {
-  const bot = createBot(token);
-  bot.start();
-  console.log("Bot started");
 }

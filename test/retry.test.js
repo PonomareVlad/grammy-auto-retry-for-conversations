@@ -16,8 +16,8 @@ const BOT_INFO = {
 
 const TEST_TOKEN = "123456789:TEST_TOKEN";
 
-// Connection refused — triggers immediate network error (HttpError in grammY)
-const UNREACHABLE_API_ROOT = "http://127.0.0.1:1";
+// Non-routable IP — triggers network timeout (not ECONNREFUSED)
+const UNREACHABLE_API_ROOT = "http://100.100.100.100";
 
 function makeUpdate(text, updateId = 1) {
   return {
@@ -44,10 +44,10 @@ function createTestBot(autoRetryConfig = {}) {
     botInfo: BOT_INFO,
     client: {
       apiRoot: UNREACHABLE_API_ROOT,
-      timeoutSeconds: 5,
+      timeoutSeconds: 3,
     },
     autoRetryConfig: {
-      maxRetryAttempts: 3,
+      maxRetryAttempts: 1,
       maxDelaySeconds: 5,
       ...autoRetryConfig,
     },
@@ -64,7 +64,7 @@ function createTestBot(autoRetryConfig = {}) {
 }
 
 describe("auto-retry on network errors without conversation", () => {
-  it("reply (sendMessage) on network error", { timeout: 15_000 }, async () => {
+  it("reply (sendMessage) on network error", { timeout: 30_000 }, async () => {
     const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
 
     let error;
@@ -79,7 +79,7 @@ describe("auto-retry on network errors without conversation", () => {
     console.log(`  methods called: [${retryCounter.methods}]`);
   });
 
-  it("replyWithPhoto (sendPhoto) on network error", { timeout: 15_000 }, async () => {
+  it("replyWithPhoto (sendPhoto) on network error", { timeout: 30_000 }, async () => {
     const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
 
     let error;
@@ -96,7 +96,7 @@ describe("auto-retry on network errors without conversation", () => {
 });
 
 describe("auto-retry on network errors inside conversation", () => {
-  it("reply (sendMessage) inside conversation on network error", { timeout: 15_000 }, async () => {
+  it("reply (sendMessage) inside conversation on network error", { timeout: 30_000 }, async () => {
     const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
 
     let error;
@@ -111,7 +111,7 @@ describe("auto-retry on network errors inside conversation", () => {
     console.log(`  methods called: [${retryCounter.methods}]`);
   });
 
-  it("replyWithPhoto (sendPhoto) inside conversation on network error", { timeout: 15_000 }, async () => {
+  it("replyWithPhoto (sendPhoto) inside conversation on network error", { timeout: 30_000 }, async () => {
     const { bot, retryCounter } = createTestBot({ rethrowHttpErrors: true });
 
     let error;
