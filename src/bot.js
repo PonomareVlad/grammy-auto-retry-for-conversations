@@ -8,7 +8,7 @@ import { conversations, createConversation } from "@grammyjs/conversations";
  * @param {object} [options] - Bot options
  * @param {object} [options.botInfo] - Pre-fetched bot info to skip getMe call
  * @param {object} [options.autoRetryConfig] - Config for auto-retry plugin
- * @param {object} [options.client] - Additional client options passed to Bot (e.g. { fetch })
+ * @param {object} [options.client] - Additional client options passed to Bot (e.g. { apiRoot })
  * @returns {Bot}
  */
 export function createBot(token, options = {}) {

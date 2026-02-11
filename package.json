@@ -31,8 +31,5 @@
     "@grammyjs/commands": "^1.2.0",
     "@grammyjs/conversations": "^2.1.1",
     "grammy": "^1.40.0"
-  },
-  "devDependencies": {
-    "undici": "^7.21.0"
   }
 }

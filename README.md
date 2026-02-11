@@ -1,23 +1,23 @@
 # grammy-auto-retry-for-conversations
 
-Demo project to test [grammY](https://grammy.dev/) auto-retry plugin behavior with conversations.
+Demo project to test [grammY](https://grammy.dev/) auto-retry plugin behavior with conversations, specifically investigating differences in retry behavior between conversation and non-conversation API requests on network errors.
 
 ## Setup
 
 - **Node.js 24+** required
 - Uses [grammy](https://www.npmjs.com/package/grammy) with plugins:
   - [@grammyjs/conversations](https://www.npmjs.com/package/@grammyjs/conversations) — multi-step conversation flows
-  - [@grammyjs/auto-retry](https://www.npmjs.com/package/@grammyjs/auto-retry) — automatic retry on rate limits (429) and server errors
+  - [@grammyjs/auto-retry](https://www.npmjs.com/package/@grammyjs/auto-retry) — automatic retry on network errors, rate limits, and server errors
   - [@grammyjs/commands](https://www.npmjs.com/package/@grammyjs/commands) — command management
 
 ## Bot Commands
 
 | Command | Description |
 |---------|-------------|
-| `/send_message` | Send a text message (without conversation) |
-| `/send_photo` | Send a photo (without conversation) |
-| `/conv_message` | Send a text message inside a conversation |
-| `/conv_photo` | Send a photo inside a conversation |
+| `/send_message` | `ctx.reply()` — sendMessage without conversation |
+| `/send_photo` | `ctx.replyWithPhoto()` — sendPhoto without conversation |
+| `/conv_message` | `ctx.reply()` inside `conversation.external()` |
+| `/conv_photo` | `ctx.replyWithPhoto()` inside `conversation.external()` |
 
 ## Running
 
@@ -28,7 +28,7 @@ TELEGRAM_BOT_TOKEN=your_token_here npm start
 
 ## Testing
 
-Tests use [undici](https://www.npmjs.com/package/undici) `MockAgent` + `setGlobalDispatcher` to mock Telegram API responses, simulating 429 rate-limit errors with `retry_after: 0` to verify auto-retry behavior.
+Tests point the bot's `apiRoot` to an unreachable address (`http://127.0.0.1:1`) to trigger real network errors (ECONNREFUSED). A pre-fetched `botInfo` is used to skip the internal `bot.init()` / `getMe` call. Each test counts API call attempts via a transformer to observe auto-retry behavior.
 
 ```bash
 npm test
@@ -38,10 +38,8 @@ npm test
 
 | Scenario | sendMessage | sendPhoto |
 |----------|------------|-----------|
-| Without conversation (retry) | ✅ | ✅ |
-| Without conversation (no retry) | ✅ | ✅ |
-| Inside conversation (retry) | ✅ | ✅ |
-| Inside conversation (no retry) | ✅ | ✅ |
+| Without conversation | ✅ | ✅ |
+| Inside conversation | ✅ | ✅ |
 
 ## CI
 
