@@ -35,10 +35,17 @@ function makeUpdate(text, updateId = 1) {
 
 /**
  * Creates a bot configured with an unreachable apiRoot.
- * Installs a transformer to count every API call attempt.
+ * Installs a transformer to count every API call attempt
+ * both on bot.api and inside conversations (via plugins).
  */
 function createTestBot(autoRetryConfig = {}) {
   const retryCounter = { count: 0, methods: [] };
+
+  const counterTransformer = (prev, method, payload, signal) => {
+    retryCounter.count++;
+    retryCounter.methods.push(method);
+    return prev(method, payload, signal);
+  };
 
   const bot = createBot(TEST_TOKEN, {
     botInfo: BOT_INFO,
@@ -51,14 +58,16 @@ function createTestBot(autoRetryConfig = {}) {
       maxDelaySeconds: 5,
       ...autoRetryConfig,
     },
+    conversationPlugins: [
+      async (ctx, next) => {
+        ctx.api.config.use(counterTransformer);
+        await next();
+      },
+    ],
   });
 
-  // Install a transformer to count every call attempt
-  bot.api.config.use((prev, method, payload, signal) => {
-    retryCounter.count++;
-    retryCounter.methods.push(method);
-    return prev(method, payload, signal);
-  });
+  // Install counter on bot.api for non-conversation calls
+  bot.api.config.use(counterTransformer);
 
   return { bot, retryCounter };
 }

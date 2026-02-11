@@ -9,6 +9,7 @@ import { conversations, createConversation } from "@grammyjs/conversations";
  * @param {object} [options.botInfo] - Pre-fetched bot info to skip getMe call
  * @param {object} [options.autoRetryConfig] - Config for auto-retry plugin
  * @param {object} [options.client] - Additional client options passed to Bot (e.g. { apiRoot })
+ * @param {Function[]} [options.conversationPlugins] - Extra middleware plugins for conversations
  * @returns {Bot}
  */
 export function createBot(token, options = {}) {
@@ -17,13 +18,23 @@ export function createBot(token, options = {}) {
   if (options.client) botOptions.client = options.client;
   const bot = new Bot(token, botOptions);
 
-  bot.api.config.use(
-    autoRetry({
-      maxRetryAttempts: 1,
-      maxDelaySeconds: 5,
-      ...options.autoRetryConfig,
-    })
-  );
+  const autoRetryTransformer = autoRetry({
+    maxRetryAttempts: 1,
+    maxDelaySeconds: 5,
+    ...options.autoRetryConfig,
+  });
+
+  bot.api.config.use(autoRetryTransformer);
+
+  // Install auto-retry inside conversations via plugins array
+  // See: https://grammy.dev/plugins/conversations#using-transformer-plugins-inside-conversations
+  const conversationPlugins = [
+    async (ctx, next) => {
+      ctx.api.config.use(autoRetryTransformer);
+      await next();
+    },
+    ...(options.conversationPlugins || []),
+  ];
 
   bot.use(conversations());
 
@@ -37,8 +48,8 @@ export function createBot(token, options = {}) {
     });
   }
 
-  bot.use(createConversation(conversationSendMessage));
-  bot.use(createConversation(conversationSendPhoto));
+  bot.use(createConversation(conversationSendMessage, { plugins: conversationPlugins }));
+  bot.use(createConversation(conversationSendPhoto, { plugins: conversationPlugins }));
 
   bot.command("send_message", (ctx) =>
     ctx.reply("Message sent without conversation")
