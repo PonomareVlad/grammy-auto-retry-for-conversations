@@ -16,8 +16,8 @@ const BOT_INFO = {
 
 const TEST_TOKEN = "123456789:TEST_TOKEN";
 
-// Non-routable IP — triggers network timeout (not ECONNREFUSED)
-const UNREACHABLE_API_ROOT = "http://100.100.100.100";
+// TEST-NET-1 (RFC 5737) — guaranteed non-routable, triggers network timeout
+const UNREACHABLE_API_ROOT = "http://192.0.2.1";
 
 function makeUpdate(text, updateId = 1) {
   return {

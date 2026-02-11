@@ -28,7 +28,7 @@ TELEGRAM_BOT_TOKEN=your_token_here npm start
 
 ## Testing
 
-Tests point the bot's `apiRoot` to a non-routable address (`http://100.100.100.100`) to trigger real network timeouts. A pre-fetched `botInfo` is used to skip the internal `bot.init()` / `getMe` call. Each test counts API call attempts via a transformer to observe auto-retry behavior.
+Tests point the bot's `apiRoot` to a non-routable address (`http://192.0.2.1` — TEST-NET-1, RFC 5737) to trigger real network timeouts. A pre-fetched `botInfo` is used to skip the internal `bot.init()` / `getMe` call. Each test counts API call attempts via a transformer to observe auto-retry behavior.
 
 ```bash
 npm test
