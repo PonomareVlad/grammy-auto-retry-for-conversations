@@ -84,7 +84,7 @@ describe("auto-retry on network errors without conversation", () => {
 
     await bot.handleUpdate(makeUpdate("/send_message"));
 
-    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
     console.log(`  sendMessage (no conversation): ${counter.count} attempt(s)`);
   });
 
@@ -94,7 +94,7 @@ describe("auto-retry on network errors without conversation", () => {
 
     await bot.handleUpdate(makeUpdate("/send_photo"));
 
-    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
     console.log(`  sendPhoto (no conversation): ${counter.count} attempt(s)`);
   });
 });
@@ -106,7 +106,7 @@ describe("auto-retry on network errors inside conversation", () => {
 
     await bot.handleUpdate(makeUpdate("/conv_message"));
 
-    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
     console.log(`  sendMessage (conversation): ${counter.count} attempt(s)`);
   });
 
@@ -116,7 +116,7 @@ describe("auto-retry on network errors inside conversation", () => {
 
     await bot.handleUpdate(makeUpdate("/conv_photo"));
 
-    assert.ok(counter.count >= 2, `Expected retries, got ${counter.count} attempt(s)`);
+    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
     console.log(`  sendPhoto (conversation): ${counter.count} attempt(s)`);
   });
 });
