@@ -30,39 +30,38 @@ function makeUpdate(text, updateId = 1) {
   };
 }
 
-const OK_BODY = JSON.stringify({
-  ok: true,
-  result: {
-    message_id: 1,
-    from: BOT_INFO,
-    chat: { id: 1, type: "private", first_name: "User" },
-    date: Math.floor(Date.now() / 1000),
-    text: "ok",
-  },
-});
+/**
+ * Returns a 429 (rate-limited) response with retry_after.
+ * auto-retry will retry once (maxRetryAttempts: 1) then fail with GrammyError.
+ */
+function rateLimitedResponse(retryAfter = 1) {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error_code: 429,
+      description: "Too Many Requests: retry after " + retryAfter,
+      parameters: { retry_after: retryAfter },
+    }),
+    { status: 429, headers: { "content-type": "application/json" } },
+  );
+}
 
 /**
- * Creates a fake fetch that fails `failCount` times then succeeds.
+ * Creates a fake fetch that always returns a 429 rate-limited response.
  * Tracks total call count.
  */
-function createFakeFetch(failCount = 2) {
+function createFakeFetch() {
   const counter = { count: 0 };
   const fakeFetch = async () => {
     counter.count++;
-    if (counter.count <= failCount) {
-      throw new TypeError("fetch failed");
-    }
-    return new Response(OK_BODY, {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return rateLimitedResponse(1);
   };
   return { fakeFetch, counter };
 }
 
 /**
- * Creates a bot that uses a fake fetch to simulate network errors.
- * auto-retry with default config (rethrowHttpErrors=false) will retry on HttpErrors.
+ * Creates a bot that uses a fake fetch to simulate API errors.
+ * auto-retry with maxRetryAttempts: 1 will retry once then fail.
  */
 function createTestBot(fakeFetch) {
   return createBot(TEST_TOKEN, {
@@ -72,51 +71,75 @@ function createTestBot(fakeFetch) {
     },
     autoRetryConfig: {
       maxRetryAttempts: 1,
-      maxDelaySeconds: 1,
+      maxDelaySeconds: 5,
     },
   });
 }
 
-describe("auto-retry on network errors without conversation", () => {
-  it("reply (sendMessage) retries on network error then succeeds", { timeout: 30_000 }, async () => {
-    const { fakeFetch, counter } = createFakeFetch(2);
+describe("auto-retry on errors without conversation", () => {
+  it("reply (sendMessage) retries once then fails", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
-    await bot.handleUpdate(makeUpdate("/send_message"));
+    let error;
+    try {
+      await bot.handleUpdate(makeUpdate("/send_message"));
+    } catch (err) {
+      error = err;
+    }
 
-    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
-    console.log(`  sendMessage (no conversation): ${counter.count} attempt(s)`);
+    assert.ok(error, "Expected an error after retries exhausted");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
+    console.log(`  sendMessage (no conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 
-  it("replyWithPhoto (sendPhoto) retries on network error then succeeds", { timeout: 30_000 }, async () => {
-    const { fakeFetch, counter } = createFakeFetch(2);
+  it("replyWithPhoto (sendPhoto) retries once then fails", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
-    await bot.handleUpdate(makeUpdate("/send_photo"));
+    let error;
+    try {
+      await bot.handleUpdate(makeUpdate("/send_photo"));
+    } catch (err) {
+      error = err;
+    }
 
-    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
-    console.log(`  sendPhoto (no conversation): ${counter.count} attempt(s)`);
+    assert.ok(error, "Expected an error after retries exhausted");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
+    console.log(`  sendPhoto (no conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 });
 
-describe("auto-retry on network errors inside conversation", () => {
-  it("reply (sendMessage) inside conversation retries on network error then succeeds", { timeout: 30_000 }, async () => {
-    const { fakeFetch, counter } = createFakeFetch(2);
+describe("auto-retry on errors inside conversation", () => {
+  it("reply (sendMessage) inside conversation retries once then fails", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
-    await bot.handleUpdate(makeUpdate("/conv_message"));
+    let error;
+    try {
+      await bot.handleUpdate(makeUpdate("/conv_message"));
+    } catch (err) {
+      error = err;
+    }
 
-    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
-    console.log(`  sendMessage (conversation): ${counter.count} attempt(s)`);
+    assert.ok(error, "Expected an error after retries exhausted");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
+    console.log(`  sendMessage (conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 
-  it("replyWithPhoto (sendPhoto) inside conversation retries on network error then succeeds", { timeout: 30_000 }, async () => {
-    const { fakeFetch, counter } = createFakeFetch(2);
+  it("replyWithPhoto (sendPhoto) inside conversation retries once then fails", { timeout: 30_000 }, async () => {
+    const { fakeFetch, counter } = createFakeFetch();
     const bot = createTestBot(fakeFetch);
 
-    await bot.handleUpdate(makeUpdate("/conv_photo"));
+    let error;
+    try {
+      await bot.handleUpdate(makeUpdate("/conv_photo"));
+    } catch (err) {
+      error = err;
+    }
 
-    assert.strictEqual(counter.count, 3, "Expected 3 attempts (2 failures + 1 success)");
-    console.log(`  sendPhoto (conversation): ${counter.count} attempt(s)`);
+    assert.ok(error, "Expected an error after retries exhausted");
+    assert.strictEqual(counter.count, 2, "Expected 2 attempts (1 initial + 1 retry)");
+    console.log(`  sendPhoto (conversation): ${counter.count} attempt(s), error: ${error.message}`);
   });
 });
